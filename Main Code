@@ -1,0 +1,142 @@
+// Include the Joystick library. Download it here: https://github.com/MHeironimus/ArduinoJoystickLibrary/archive/master.zip
+#include <Joystick.h>
+// Define the parameters of the joystick library function
+Joystick_ Joystick = Joystick_(0x03, 0x04,                      // HID ID (if running more than 1 Arduinos that use the Joystick library, you can not have this ID twice DO NOT USE 1 or 2 as Arduino uses those 2 for the default Mouse and keyboard libraries!!!), joystick Identifier
+                               15, 0,                           // Button Count, Hat Switch Count
+                               false, false, false,             // No X, Y, and Z Axis
+                               false, false, false,             // No Rx, Ry, or Rz
+                               false, false,                    // No rudder or throttle
+                               false, false, false);            // No accelerator, brake, or steering)
+
+// Define Raw Inputs to reference
+int rawinput[15] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 18, 19, 20, 21};
+// Define flap LED pins
+int flap1 = 14;
+int flap2 = 15;
+// Define gear LEDs to pin 6
+int gearled = 16;
+// Define Current Reference state of button array
+int inputrc[15];
+// Define Previous Reference state of button array
+int inputrp[15];
+// Define flap variable and set value to 0
+int flap = 0;
+// Define Millis variables for Buttons, Gear LEDs, and Flap LEDs
+unsigned long startMillisButton;
+unsigned long currentMillisButton;
+const unsigned long timeframeButton = 15;
+unsigned long startMillisFlap;
+unsigned long currentMillisFlap;
+const unsigned long timeframeFlap = 15;
+unsigned long startMillisGear;
+unsigned long currentMillisGear;
+const unsigned long timeframeGear = 15;
+// Define which pins are to be used as a joystick button
+const int inputc[15] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 18, 19, 20, 21};
+// Last state of the button
+int lastButtonState[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+void setup() {
+  // Start the timers
+  startMillisButton = millis();  //initial start time of Button Millis
+  startMillisFlap = millis();  //initial start time of Flap Millis
+  // Initialize gear and flap LEDs as an output
+  pinMode(gearled, OUTPUT);
+  pinMode(flap1, OUTPUT);
+  pinMode(flap2, OUTPUT);
+  // Initialize the input array as an input with pullup enabled
+  for (int i = 0; i < 15; i++)
+    pinMode(rawinput[i], INPUT_PULLUP);
+  // Set all reference past inputs as HIGH, in case any switches were thrown upon startup
+  inputrp[9] = HIGH;
+  inputrp[10] = HIGH;
+  inputrp[11] = HIGH;
+  // Start the joystick library
+  Joystick.begin();
+}
+
+
+// Joystick Button Script
+void joystickbutton() {
+  if (currentMillisButton - startMillisButton >= timeframeButton) {
+    // Read array of input pins
+    for (int index = 0; index < 15; index++)
+    {
+      int currentButtonState = !digitalRead(inputc[index]);
+      // If button state has changed since last loop, toggle joystick button
+      if (currentButtonState != lastButtonState[index])
+      {
+        Joystick.setButton(index, currentButtonState);
+        lastButtonState[index] = currentButtonState;
+      }
+    }
+    // Set start timer value equal to current value
+    startMillisButton = currentMillisButton;
+  }
+}
+// Flap LEDs Script
+void flapLEDs() {
+  if (currentMillisFlap - startMillisFlap >= timeframeFlap) {
+    // Flap LEDs
+    // Read Inputs of both flap switches
+    inputrc[9] = digitalRead(rawinput[9]);
+    inputrc[10] = digitalRead(rawinput[10]);
+    // If state has changed since last loop
+    if ((inputrc[9] != inputrp[9]) && (inputrc[9] == LOW) && (flap > 0)) {
+      --flap;
+    }
+    // Set value of past input equal to value of current input
+    inputrp[9] = inputrc[9];
+    // If state has changed since last loop
+    if ((inputrc[10] != inputrp[10]) && (inputrc[10] == LOW) && (flap < 2)) {
+      ++flap;
+    }
+    // Set value of past input equal to value of current input
+    inputrp[10] = inputrc[10];
+    // Turn on and off flap LEDs as dictated by value of flap
+    if (flap >= 1)
+      digitalWrite(flap2, HIGH);
+    else
+      digitalWrite(flap2, LOW);
+    if (flap >= 2)
+      digitalWrite(flap1, HIGH);
+    else
+      digitalWrite(flap1, LOW);
+    startMillisFlap = currentMillisFlap;
+  }
+}
+
+
+// Gear LEDs Script
+void gearLEDs() {
+  if (currentMillisGear - startMillisGear >= timeframeGear) {
+    // Gear LEDs
+    // Read gear switch state
+    inputrc[11] = digitalRead(rawinput[11]);
+    // If state has changed and is LOW and was HIGH last loop
+    if ((inputrc[11] != inputrp[11]) && (inputrc[11] == LOW)) {
+      // Turn on gear LEDs
+      digitalWrite(gearled, HIGH);
+    }
+    // Otherwise, if state has changed to HIGH, and was LOW last loop
+    else if ((inputrc[11] != inputrp[11]) && (inputrc[11] == HIGH)) {
+      // Turn off gear LEDs
+      digitalWrite(gearled, LOW);
+    }
+    // Set value of past input equal to value of current input
+    inputrp[11] = inputrc[11];
+    startMillisGear = currentMillisGear;
+  }
+}
+
+
+void loop() {
+  // Get the current millis times
+  currentMillisButton = millis();
+  currentMillisFlap = millis();
+  currentMillisGear = millis();
+
+  joystickbutton();
+  flapLEDs();
+  gearLEDs();
+}
